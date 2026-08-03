@@ -1,0 +1,56 @@
+services:
+  hermes:
+    image: nousresearch/hermes-agent:latest
+    container_name: hermes
+    restart: unless-stopped
+    command: gateway run
+    shm_size: 1g
+    ports:
+      - 8642:8642
+      - 9119:9119
+    volumes:
+      - ./data:/opt/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - TZ=America/Los_Angeles
+      - HERMES_UID=${HERMES_UID:-1000}
+      - HERMES_GID=${HERMES_GID:-1000}
+      - HERMES_DASHBOARD=1
+      - HERMES_DASHBOARD_BASIC_AUTH_USERNAME=${HERMES_DASHBOARD_USERNAME}
+      - HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=${HERMES_DASHBOARD_PASSWORD}
+      - HERMES_DASHBOARD_BASIC_AUTH_SECRET=${HERMES_DASHBOARD_SECRET}
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "1.0"
+
+  applets:
+    image: caddy:2-alpine
+    container_name: hermes-applets
+    restart: unless-stopped
+    ports:
+      - 80:80
+    command: caddy file-server --root /srv --browse
+    volumes:
+      - ./data/applets:/srv:ro
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: hermes-ollama
+    restart: unless-stopped
+    ports:
+      - 11434:11434
+    volumes:
+      - ./ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_CONTEXT_LENGTH=65536
+      - OLLAMA_FLASH_ATTENTION=1
+      - OLLAMA_KV_CACHE_TYPE=q8_0
+      - OLLAMA_MAX_LOADED_MODELS=1
+      - OLLAMA_KEEP_ALIVE=30s
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+          cpus: "5.0"
