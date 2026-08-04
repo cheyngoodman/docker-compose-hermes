@@ -63,6 +63,16 @@ The WebUI starts automatically with the container via `hermes.sh`. The docker-co
 
 Set `HERMES_WEBUI_ENABLED=0` in `.env` to skip the WebUI entirely.
 
+### Recovery (if hermes.sh breaks)
+
+If an update breaks the init script and the container won't start, set in `.env`:
+
+```ini
+HERMES_INIT_SAFE_MODE=1
+```
+
+Then `docker compose up -d`. The container will skip `hermes.sh` entirely and run `hermes gateway run` directly — the original behavior. Fix the issue, then remove the safe mode line.
+
 ### Mobile access
 
 Once running, the WebUI is reachable at `http://<host>:8787` with the configured password. Works with [hermes-android](https://github.com/rusty4444/hermes-android) — point the app at your host IP or Tailscale address, port 8787, with the WebUI password.

@@ -19,6 +19,14 @@ HERMES_HOME="${HERMES_HOME:-/opt/data}"
 
 log() { printf '[hermes] %s\n' "$*"; }
 
+# ── Emergency bypass ────────────────────────────────────────────────
+# Set HERMES_INIT_SAFE_MODE=1 in .env to skip the init script entirely
+# and just run the gateway. Recovery path if hermes.sh ever breaks.
+if [ "${HERMES_INIT_SAFE_MODE:-0}" = "1" ]; then
+    log "SAFE MODE — skipping init, running gateway directly"
+    exec hermes gateway run
+fi
+
 # ── Gateway ────────────────────────────────────────────────────────
 log "Starting gateway…"
 hermes gateway run &
@@ -47,8 +55,9 @@ while true; do
         exit 1
     fi
     if [ $(( $(date +%s) - _start )) -ge "$GATEWAY_READY_TIMEOUT" ]; then
-        log "ERROR: gateway did not become healthy within ${GATEWAY_READY_TIMEOUT}s"
-        exit 1
+        log "WARNING: gateway health check timed out after ${GATEWAY_READY_TIMEOUT}s"
+        log "Gateway may still be starting — skipping WebUI, waiting for gateway"
+        break
     fi
     sleep 1
 done
