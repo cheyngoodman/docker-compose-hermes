@@ -76,7 +76,6 @@ Once running, the WebUI is reachable at `http://<host>:8787` with the configured
 
 ## Architecture Notes
 
-- Hermes mounts the Docker socket (`/var/run/docker.sock`) for container management
 - Hermes data persists at `./data/` (gitignored)
 - Hermes WebUI runs in-process inside the hermes container, bound to 0.0.0.0:8787 — auth is mandatory and configured via `HERMES_WEBUI_PASSWORD` in `.env`
 - Ollama models persist at `./ollama-data/` (gitignored)
