@@ -59,22 +59,9 @@ The WebUI starts automatically with the container via `hermes-init.sh`. The dock
 3. Starts the WebUI daemon via `ctl.sh start`
 4. Waits for the gateway to exit (keeps the container alive)
 
-Set `HERMES_WEBUI_ENABLED=0` in `.env` to skip the WebUI at boot.
+**On first boot**, if `/opt/data/hermes-webui` doesn't exist yet and `HERMES_WEBUI_PASSWORD` is set, the init script auto-clones the repo, creates `.env` with the password and agent paths, and starts the WebUI — zero manual steps beyond setting the password in your compose `.env`.
 
-### First-run setup (one-time, inside the container)
-
-On a fresh install where `/opt/data/hermes-webui` doesn't exist yet:
-
-```bash
-docker exec -it hermes bash
-git clone https://github.com/nesquena/hermes-webui.git /opt/data/hermes-webui
-cp /opt/data/hermes-webui/.env.example /opt/data/hermes-webui/.env
-# Edit .env — set HERMES_WEBUI_PASSWORD=<strong password>
-# Start immediately (or restart the container):
-HERMES_HOME=/opt/data /opt/data/hermes-webui/ctl.sh start
-```
-
-The clone and config survive container rebuilds — one-time only. After that, the WebUI auto-starts every boot.
+Set `HERMES_WEBUI_ENABLED=0` in `.env` to skip the WebUI entirely.
 
 ### Mobile access
 
