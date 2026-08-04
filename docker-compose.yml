@@ -3,7 +3,7 @@ services:
     image: nousresearch/hermes-agent:latest
     container_name: hermes
     restart: unless-stopped
-    command: /opt/hermes-init/hermes-init.sh
+    command: /opt/init/hermes.sh
     shm_size: 1g
     ports:
       - 8642:8642
@@ -11,7 +11,7 @@ services:
       - 8787:8787
     volumes:
       - ./data:/opt/data
-      - ./scripts:/opt/hermes-init:ro
+      - ./scripts:/opt/init:ro
     environment:
       - TZ=America/Los_Angeles
       - HERMES_UID=${HERMES_UID:-1000}

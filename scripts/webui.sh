@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Start the Hermes WebUI daemon inside the container.
 # Run from the host after container rebuild:
-#   docker exec hermes /opt/data/scripts/start-webui.sh
+#   docker exec hermes /opt/init/webui.sh
 set -euo pipefail
 
 WEBUI_DIR="${WEBUI_DIR:-/opt/data/hermes-webui}"

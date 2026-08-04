@@ -52,7 +52,7 @@ The agent venv path (`/opt/hermes/.venv/bin/python3`) is stable across image ver
 
 ### Startup (automatic)
 
-The WebUI starts automatically with the container via `hermes-init.sh`. The docker-compose `command` is set to `/opt/data/scripts/hermes-init.sh`, which:
+The WebUI starts automatically with the container via `hermes.sh`. The docker-compose `command` is set to `/opt/init/hermes.sh`, which:
 
 1. Starts `hermes gateway run` (the standard gateway)
 2. Waits for gateway health at `:9119`
