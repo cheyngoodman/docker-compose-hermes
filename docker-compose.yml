@@ -3,14 +3,15 @@ services:
     image: nousresearch/hermes-agent:latest
     container_name: hermes
     restart: unless-stopped
-    command: gateway run
+    command: /opt/init/hermes.sh
     shm_size: 1g
     ports:
       - 8642:8642
       - 9119:9119
+      - 8787:8787
     volumes:
       - ./data:/opt/data
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ./scripts:/opt/init:ro
     environment:
       - TZ=America/Los_Angeles
       - HERMES_UID=${HERMES_UID:-1000}
@@ -19,6 +20,10 @@ services:
       - HERMES_DASHBOARD_BASIC_AUTH_USERNAME=${HERMES_DASHBOARD_USERNAME}
       - HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=${HERMES_DASHBOARD_PASSWORD}
       - HERMES_DASHBOARD_BASIC_AUTH_SECRET=${HERMES_DASHBOARD_SECRET}
+      - HERMES_WEBUI_ENABLED=${HERMES_WEBUI_ENABLED:-1}
+      - HERMES_WEBUI_PASSWORD=${HERMES_WEBUI_PASSWORD}
+      - HERMES_WEBUI_HOST=0.0.0.0
+      - HERMES_WEBUI_PORT=8787
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:9119/api/status || exit 1"]
       interval: 30s
