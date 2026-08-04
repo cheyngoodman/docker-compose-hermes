@@ -48,15 +48,13 @@ docker compose up -d
 
 ## Known Gaps
 
-- **No healthchecks** — Docker can't detect hung services or restart them
 - **No `depends_on`** — services start simultaneously; Hermes might start before Ollama is ready
-- **Ollama `keep_alive: 30s`** — models unload aggressively; bump to `5m` or `-1` for responsive use
 - **Memory limits are tight** — 4G for Hermes + 6G for Ollama = 10G minimum; a small model like `llama3.2:3b` works but larger models need more
 - **No network isolation** — all three services share the default bridge; fine for single-node but worth isolating if exposed
 
 ## What's Next
 
-1. Add healthchecks for all three services
-2. Consider `depends_on` with `condition: service_healthy` for Hermes → Ollama ordering
+1. Add `depends_on` with `condition: service_healthy` for Hermes → Ollama ordering
+2. Consider network isolation (separate bridge for applets vs backend)
 3. Add a `.dockerignore` for faster builds if custom images are ever introduced
-4. Document Ollama model pull process (first-run cold start)
+4. Consider a `compose.override.yml` example for GPU passthrough
