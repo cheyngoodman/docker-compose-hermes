@@ -37,6 +37,7 @@ docker compose up -d
 - No pushing `.env` or `data/` — those are gitignored
 - Test compose changes with `docker compose config` before committing
 - Port numbers are stable (8642, 9119, 80, 11434) — don't change without a reason
+- Feature branches off `main`; merge locally when approved (no `gh` CLI needed)
 
 ## Architecture Notes
 
