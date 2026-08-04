@@ -3,7 +3,7 @@ services:
     image: nousresearch/hermes-agent:latest
     container_name: hermes
     restart: unless-stopped
-    command: gateway run
+    command: /opt/data/scripts/hermes-init.sh
     shm_size: 1g
     ports:
       - 8642:8642

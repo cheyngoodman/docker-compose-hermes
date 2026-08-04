@@ -50,33 +50,31 @@ The [hermes-webui](https://github.com/nesquena/hermes-webui) runs **inside** the
 
 The agent venv path (`/opt/hermes/.venv/bin/python3`) is stable across image versions. When the container image updates, the WebUI code persists but needs a restart.
 
-### Setup (one-time, inside the container)
+### Startup (automatic)
+
+The WebUI starts automatically with the container via `hermes-init.sh`. The docker-compose `command` is set to `/opt/data/scripts/hermes-init.sh`, which:
+
+1. Starts `hermes gateway run` (the standard gateway)
+2. Waits for gateway health at `:9119`
+3. Starts the WebUI daemon via `ctl.sh start`
+4. Waits for the gateway to exit (keeps the container alive)
+
+Set `HERMES_WEBUI_ENABLED=0` in `.env` to skip the WebUI at boot.
+
+### First-run setup (one-time, inside the container)
+
+On a fresh install where `/opt/data/hermes-webui` doesn't exist yet:
 
 ```bash
 docker exec -it hermes bash
-cd /opt/data/hermes-webui
-# If the repo doesn't exist yet:
-#   git clone https://github.com/nesquena/hermes-webui.git /opt/data/hermes-webui
-#   cp /opt/data/hermes-webui/.env.example /opt/data/hermes-webui/.env
-#   # Edit .env — set HERMES_WEBUI_PASSWORD
-
-# Start (after first setup, or after container rebuild):
-HERMES_HOME=/opt/data ./ctl.sh start
+git clone https://github.com/nesquena/hermes-webui.git /opt/data/hermes-webui
+cp /opt/data/hermes-webui/.env.example /opt/data/hermes-webui/.env
+# Edit .env — set HERMES_WEBUI_PASSWORD=<strong password>
+# Start immediately (or restart the container):
+HERMES_HOME=/opt/data /opt/data/hermes-webui/ctl.sh start
 ```
 
-### Restarting after container rebuild
-
-The WebUI daemon does not survive a container restart. After `docker compose up -d` (or after pulling a new image), run:
-
-```bash
-docker exec hermes /opt/data/scripts/start-webui.sh
-```
-
-Or equivalently:
-
-```bash
-docker exec hermes bash -c 'cd /opt/data/hermes-webui && HERMES_HOME=/opt/data ./ctl.sh start'
-```
+The clone and config survive container rebuilds — one-time only. After that, the WebUI auto-starts every boot.
 
 ### Mobile access
 
