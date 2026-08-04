@@ -1,0 +1,9 @@
+# Sensitive
+.env
+
+# Runtime data (mounted volumes)
+data/
+ollama-data/
+
+# Docker
+.docker/
