@@ -45,7 +45,18 @@ Agent reads config at    WebUI reads config at
       └────── Same file on disk ──────┘
 ```
 
-Both run as UID 1000 (HERMES_UID / WANTED_UID), so file ownership is consistent. No data migration — `./data/` is the same directory v1 used.
+Both run as UID 1000 (HERMES_UID / WANTED_UID), so file ownership is consistent.
+
+### Migration from v1
+
+- **Agent state:** no migration — `./data/` is the same directory v1 used.
+- **WebUI state:** one-time move required. v1 stored WebUI state at `./data/hermes-webui-state/`; v2 uses `./data/webui/`. Before first v2 start, move the old state so sessions and project bookmarks carry over:
+  ```bash
+  docker compose down
+  mv data/hermes-webui-state data/webui
+  docker compose up -d
+  ```
+  If you don't care about prior WebUI sessions, skip the move — v2 starts clean either way.
 
 ### What `hermes-agent-src` is for
 
@@ -90,7 +101,7 @@ The WebUI image is turnkey — it handles UID remapping, venv creation, and agen
 
 ### Disabling services
 
-- **WebUI:** Comment out the `hermes-webui` service block (lines ~58-85).
+- **WebUI:** Comment out the `hermes-webui` service block in `docker-compose.yml`.
 - **Applets:** Comment out the `applets` service block.
 
 That's the entire feature. No env var toggles, no `HERMES_WEBUI_ENABLED`.
@@ -106,7 +117,7 @@ cp example.env .env
 docker compose up -d
 ```
 
-If `./data/` already exists from v1, it continues working — no migration. If it doesn't exist, the agent initializes it.
+If `./data/` already exists from v1, agent state continues working as-is. For WebUI state, see the [Migration from v1](#migration-from-v1) note above — one-time move of `data/hermes-webui-state/` to `data/webui/`. If it doesn't exist, the agent initializes it.
 
 ## .env Variables
 
@@ -141,6 +152,7 @@ If `./data/` already exists from v1, it continues working — no migration. If i
 
 ## Known Gaps
 
+- **Tools run in the WebUI container** — tools triggered from the WebUI execute in the WebUI container, not the agent container (upstream issue #681). Relevant to MCP servers: they must be reachable/installed in the WebUI container, not just the agent. Single-container setups don't have this split.
 - **Single-node only** — no HA, no failover, no backup automation (yet)
 - **Dashboard inside agent container** — could be split to its own container if resource isolation is needed later
 - **No `depends_on` for applets** — starts simultaneously with agent; fine since it's independent
