@@ -1,106 +1,153 @@
 # docker-compose-hermes
 
-Docker Compose environment for running Hermes Agent with Ollama (local LLM) and an applets file server. Designed for homelab / single-node deployments.
+Docker Compose stack for self-hosted Hermes Agent with a separate WebUI container and an applets file server. Designed for single-node homelab deployments.
 
 ## Status
 
-ACTIVE — used for self-hosted Hermes infrastructure
+ACTIVE — v2 restructure on `feat/v2-separate-webui` (separate WebUI container, Ollama dropped).
 
 ## What's in the stack
 
-| Service  | Image                        | Ports         | Purpose                        |
-|----------|------------------------------|---------------|--------------------------------|
-| hermes   | nousresearch/hermes-agent    | 8642, 9119, 8787 | Gateway + dashboard + WebUI    |
-| applets  | caddy:2-alpine               | 80            | Static file server for applets |
-| ollama   | ollama/ollama                | 11434         | Local LLM inference            |
+| Service       | Image                                | Ports         | Purpose                         |
+|---------------|--------------------------------------|---------------|---------------------------------|
+| hermes-agent  | nousresearch/hermes-agent:latest     | 8642, 9119    | Gateway + dashboard             |
+| hermes-webui  | ghcr.io/nesquena/hermes-webui:latest | 8787          | Browser chat UI (separate container) |
+| applets       | caddy:2-alpine                       | 80            | Static file server for applets   |
+
+## Volume Design
+
+Only ONE named volume. Everything else is bind mounts pointing at host directories — same layout as v1, no migration needed.
+
+| Mount                  | Type  | Host path          | Purpose                                          | NFS candidate? |
+|------------------------|-------|--------------------|--------------------------------------------------|----------------|
+| `./data`              | bind  | `data/`            | Agent state: config, sessions, skills, memory, workspace, applets | **Yes** — primary candidate; contains all durable state |
+| `hermes-agent-src`    | named | Docker-managed     | Agent Python source (shared with WebUI, read-only)| **No** — ephemeral, recreated on upgrades |
+
+### How the shared bind mount works
+
+Both containers mount `./data` but at different internal paths:
+
+```
+Host: ./data/
+  ├── config.yaml
+  ├── state.db
+  ├── .env
+  ├── sessions/
+  ├── skills/
+  └── ...
+
+Agent container         WebUI container
+./data → /opt/data       ./data → /home/hermeswebui/.hermes
+
+Agent reads config at    WebUI reads config at
+/opt/data/config.yaml    /home/hermeswebui/.hermes/config.yaml
+
+      └────── Same file on disk ──────┘
+```
+
+Both run as UID 1000 (HERMES_UID / WANTED_UID), so file ownership is consistent. No data migration — `./data/` is the same directory v1 used.
+
+### What `hermes-agent-src` is for
+
+The WebUI's startup script (`docker_init.bash`) needs the agent's Python source to `uv pip install` matching dependencies. This is the agent code from inside the `nousresearch/hermes-agent` image — it can't be bind-mounted because it doesn't exist on the host. Docker auto-initializes this named volume from the image on first `docker compose up`.
+
+It's ephemeral. After `docker pull` of a new agent image:
+
+```bash
+docker compose down
+docker volume rm docker-compose-hermes_hermes-agent-src
+docker compose up -d
+```
+
+### NFS migration path
+
+`./data` is the state volume. If you move to NFS-backed storage later:
+
+1. Stop the stack
+2. Move `./data/` contents to an NFS mount
+3. Change the bind mount source in docker-compose.yml from `./data` to the NFS path
+4. Start the stack
+
+The containers don't care where the host directory lives — bind mounts are transparent.
+
+## Architecture
+
+```
+hermes-net (bridge)
+├── hermes-agent       gateway run (:8642) + dashboard (:9119)
+│   ├── ./data          (bind mount — state + workspace)
+│   └── hermes-agent-src (named volume — agent Python source)
+│
+├── hermes-webui       browser chat UI (:8787)
+│   ├── ./data          (same bind mount, different container path)
+│   └── hermes-agent-src (same named volume, read-only)
+│
+└── applets            caddy file-server (:80)
+    └── ./data/applets  (bind mount, read-only)
+```
+
+The WebUI image is turnkey — it handles UID remapping, venv creation, and agent dep installation internally. No init scripts, no first-boot cloning.
+
+### Disabling services
+
+- **WebUI:** Comment out the `hermes-webui` service block (lines ~58-85).
+- **Applets:** Comment out the `applets` service block.
+
+That's the entire feature. No env var toggles, no `HERMES_WEBUI_ENABLED`.
 
 ## Quick Start
 
 ```bash
 cp example.env .env
-# edit .env — set HERMES_DASHBOARD_SECRET at minimum
+# Edit .env — set HERMES_DASHBOARD_SECRET and HERMES_WEBUI_PASSWORD at minimum
+#   openssl rand -base64 32  # for dashboard secret
+#   openssl rand -base64 18  # for webui password
+
 docker compose up -d
 ```
+
+If `./data/` already exists from v1, it continues working — no migration. If it doesn't exist, the agent initializes it.
 
 ## .env Variables
 
 | Variable                     | Default      | Notes                                          |
 |------------------------------|--------------|------------------------------------------------|
-| HERMES_UID                   | 1000         | Filesystem owner for /opt/data                 |
-| HERMES_GID                   | 1000         |                                                |
+| HERMES_UID                   | 1000         | Container user ID                              |
+| HERMES_GID                   | 1000         | Container group ID                             |
 | HERMES_DASHBOARD_USERNAME    | admin        | Basic auth for dashboard at :9119              |
 | HERMES_DASHBOARD_PASSWORD    | changeme     | Change this                                    |
 | HERMES_DASHBOARD_SECRET      | (required)   | `openssl rand -base64 32`                      |
-| HERMES_WEBUI_ENABLED         | 1            | Set to 0 to disable the in-container WebUI     |
-| HERMES_WEBUI_PASSWORD        | (required)   | Password for WebUI auth; `openssl rand -base64 18` |
-
-## Hermes WebUI
-
-The [hermes-webui](https://github.com/nesquena/hermes-webui) runs **inside** the Hermes container (not as a separate service). It reads the agent's config directly from `/opt/data/config.yaml` and stores its state at `/opt/data/hermes-webui-state` — both on the persistent volume.
-
-### Architecture
-
-| Component          | Location                        | Persistent? |
-|--------------------|--------------------------------|-------------|
-| WebUI code         | `/opt/data/hermes-webui`       | Yes (volume) |
-| WebUI state        | `/opt/data/hermes-webui-state` | Yes (volume) |
-| Agent code + venv  | `/opt/hermes`                  | No (image)  |
-| Agent config       | `/opt/data/config.yaml`        | Yes (volume) |
-| Auth password      | `/opt/data/hermes-webui/.env`  | Yes (volume) |
-
-The agent venv path (`/opt/hermes/.venv/bin/python3`) is stable across image versions. When the container image updates, the WebUI code persists but needs a restart.
-
-### Startup (automatic)
-
-The WebUI starts automatically with the container via `hermes.sh`. The docker-compose `command` is set to `/opt/init/hermes.sh`, which:
-
-1. Starts `hermes gateway run` (the standard gateway)
-2. Waits for gateway health at `:9119`
-3. Starts the WebUI daemon via `ctl.sh start`
-4. Waits for the gateway to exit (keeps the container alive)
-
-**On first boot**, if `/opt/data/hermes-webui` doesn't exist yet and `HERMES_WEBUI_PASSWORD` is set, the init script auto-clones the repo, creates `.env` with the password and agent paths, and starts the WebUI — zero manual steps beyond setting the password in your compose `.env`.
-
-Set `HERMES_WEBUI_ENABLED=0` in `.env` to skip the WebUI entirely.
-
-### Recovery (if hermes.sh breaks)
-
-If an update breaks the init script and the container won't start, set in `.env`:
-
-```ini
-HERMES_INIT_SAFE_MODE=1
-```
-
-Then `docker compose up -d`. The container will skip `hermes.sh` entirely and run `hermes gateway run` directly — the original behavior. Fix the issue, then remove the safe mode line.
-
-### Mobile access
-
-Once running, the WebUI is reachable at `http://<host>:8787` with the configured password. Works with [hermes-android](https://github.com/rusty4444/hermes-android) — point the app at your host IP or Tailscale address, port 8787, with the WebUI password.
+| HERMES_WEBUI_PASSWORD        | (required)   | WebUI login password; `openssl rand -base64 18`|
 
 ## Conventions
 
-- No pushing `.env` or `data/` — those are gitignored
-- Test compose changes with `docker compose config` before committing
-- Port numbers are stable (8642, 9119, 8787, 80, 11434) — don't change without a reason
-- Feature branches off `main`; merge locally when approved (no `gh` CLI needed)
+- No pushing `.env`, `data/`, `workspace/`, or `applets/` — gitignored
+- Verify compose syntax: `docker compose config` before committing
+- Port numbers are stable (8642, 9119, 8787, 80)
+- **Feature branches off `main`** — never push directly to main
+- Disable services by commenting out their block — no env var toggles
 
-## Architecture Notes
+## What Changed (v1 → v2)
 
-- Hermes data persists at `./data/` (gitignored)
-- Hermes WebUI runs in-process inside the hermes container, bound to 0.0.0.0:8787 — auth is mandatory and configured via `HERMES_WEBUI_PASSWORD` in `.env`
-- Ollama models persist at `./ollama-data/` (gitignored)
-- Applets are served read-only from `./data/applets/` by Caddy
-- All three services are on the default bridge network — they can reach each other by service name
+| v1                        | v2                                              |
+|---------------------------|-------------------------------------------------|
+| WebUI in hermes container | Separate `hermes-webui` container               |
+| Init script `hermes.sh`   | `command: gateway run` — no init script needed  |
+| `HERMES_WEBUI_ENABLED`    | Comment out the service block                   |
+| `HERMES_INIT_SAFE_MODE`   | Not applicable — no init script to break        |
+| Ollama (6GB, didn't work) | Removed                                          |
+| Data volume               | Same `./data` bind mount — no migration         |
+| Agent source volume       | New named volume `hermes-agent-src` (needed by WebUI) |
 
 ## Known Gaps
 
-- **No `depends_on`** — services start simultaneously; Hermes might start before Ollama is ready
-- **Memory limits are tight** — 4G for Hermes + 6G for Ollama = 10G minimum; a small model like `llama3.2:3b` works but larger models need more
-- **No network isolation** — all three services share the default bridge; fine for single-node but worth isolating if exposed
+- **Single-node only** — no HA, no failover, no backup automation (yet)
+- **Dashboard inside agent container** — could be split to its own container if resource isolation is needed later
+- **No `depends_on` for applets** — starts simultaneously with agent; fine since it's independent
 
 ## What's Next
 
-1. Add `depends_on` with `condition: service_healthy` for Hermes → Ollama ordering
-2. Consider network isolation (separate bridge for applets vs backend)
-3. Add a `.dockerignore` for faster builds if custom images are ever introduced
-4. Consider a `compose.override.yml` example for GPU passthrough
+- [ ] Phase 2: Grafana + Prometheus + cadvisor for monitoring
+- [ ] Automated backups of `./data/` to NAS
+- [ ] Consider NFS-backed `./data/` for resilience
+- [ ] Consider dashboard as separate container if resource contention becomes an issue

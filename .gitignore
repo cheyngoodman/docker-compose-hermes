@@ -1,9 +1,5 @@
 # Sensitive
 .env
 
-# Runtime data (mounted volumes)
+# Runtime data (bind-mounted volumes)
 data/
-ollama-data/
-
-# Docker
-.docker/
