@@ -22,8 +22,8 @@ services:
     command: gateway run
     shm_size: 1g
     ports:
-      - "8642:8642"      # gateway API
-      - "9119:9119"      # dashboard
+      - "127.0.0.1:8642:8642"   # gateway API (localhost only — no auth on this port)
+      - "9119:9119"             # dashboard
     volumes:
       # ── Agent state (bind mount — no migration, same path as v1) ──
       # Contains: config.yaml, state.db, .env, sessions/, skills/,
@@ -64,8 +64,7 @@ services:
     image: ghcr.io/nesquena/hermes-webui:latest
     container_name: hermes-webui
     depends_on:
-      hermes-agent:
-        condition: service_healthy
+      - hermes-agent
     ports:
       - "8787:8787"
     volumes:
